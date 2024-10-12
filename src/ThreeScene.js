@@ -2,15 +2,15 @@
 
 import React, { useEffect } from 'react';
 import * as THREE from 'three';
-
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { DeviceOrientationControls } from 'three-stdlib';
 
 const ThreeScene = () => {
   useEffect(() => {
-    let scene, camera, renderer, controls, composer, bloomPass;
+    let scene, camera, renderer, controls, deviceControls, composer, bloomPass;
     let video, texture, particles, analyser, audioCtx, audio, audioSource;
     const particleCount = 480 * 480;
     const luminanceThreshold = 0.1;
@@ -33,7 +33,6 @@ const ThreeScene = () => {
     texture = new THREE.VideoTexture(video);
     texture.minFilter = THREE.NearestFilter;
     texture.magFilter = THREE.NearestFilter;
-    video.play();
 
     // Renderer setup
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -56,7 +55,6 @@ const ThreeScene = () => {
     analyser.fftSize = 512;
     audioSource.connect(analyser);
     analyser.connect(audioCtx.destination);
-    audio.play();
 
     // Create Particle System
     const videoWidth = 480;
@@ -156,8 +154,29 @@ const ThreeScene = () => {
       bassStrength = bassTotal / bassRange / 155;
     };
 
-    // Device Orientation Variables
-    let deviceOrientation = null;
+    // Device orientation controls for mobile
+    if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {
+      deviceControls = new DeviceOrientationControls(camera);
+      deviceControls.connect();
+      deviceControls.update();
+      controls.enabled = false; // Disable OrbitControls on mobile
+    }
+
+    // Start video and audio playback after user interaction
+    const startMediaPlayback = () => {
+      video.play().catch((error) => {
+        console.error('Error starting video playback:', error);
+      });
+
+      audio.play().catch((error) => {
+        console.error('Error starting audio playback:', error);
+      });
+
+      window.removeEventListener('click', startMediaPlayback);
+    };
+
+    // Add event listener to start media playback
+    window.addEventListener('click', startMediaPlayback);
 
     const animate = () => {
       requestAnimationFrame(animate);
@@ -165,21 +184,9 @@ const ThreeScene = () => {
         detectBass();
         particles.material.uniforms.bassStrength.value = bassStrength;
 
-        // Update camera rotation based on device orientation
-        if (deviceOrientation) {
-          const { alpha, beta, gamma } = deviceOrientation;
-
-          // Convert degrees to radians
-          const alphaRad = THREE.MathUtils.degToRad(alpha || 0);
-          const betaRad = THREE.MathUtils.degToRad(beta || 0);
-          const gammaRad = THREE.MathUtils.degToRad(gamma || 0);
-
-          // Create quaternion from Euler angles
-          const euler = new THREE.Euler();
-          euler.set(betaRad, alphaRad, -gammaRad, 'YXZ'); // Adjust axes as needed
-          camera.quaternion.setFromEuler(euler);
+        if (deviceControls) {
+          deviceControls.update();
         } else {
-          // Fallback to OrbitControls if device orientation is not available
           controls.update();
         }
 
@@ -188,81 +195,18 @@ const ThreeScene = () => {
     };
     animate();
 
-    // Function to request permission and enable device orientation
-    const requestOrientationPermission = async () => {
-      if (
-        typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function'
-      ) {
-        // iOS 13+ devices
-        try {
-          const response = await DeviceOrientationEvent.requestPermission();
-          if (response === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation, true);
-            controls.enabled = false; // Disable OrbitControls
-          } else {
-            alert('Device orientation permission denied');
-          }
-        } catch (error) {
-          console.error('Error requesting device orientation permission:', error);
-        }
-      } else {
-        // Non-iOS devices or older versions
-        window.addEventListener('deviceorientation', handleOrientation, true);
-        controls.enabled = false; // Disable OrbitControls
-      }
-    };
-
-    const handleOrientation = (event) => {
-      deviceOrientation = {
-        alpha: event.alpha,
-        beta: event.beta,
-        gamma: event.gamma,
-      };
-    };
-
-    // Add event listener to the button
-    const button = document.getElementById('enable-gyroscope');
-    button.addEventListener('click', requestOrientationPermission);
-
     // Clean up
     return () => {
       window.removeEventListener('resize', onWindowResize);
-      window.removeEventListener('deviceorientation', handleOrientation);
+      if (deviceControls) deviceControls.dispose();
       if (controls) controls.dispose();
       container.removeChild(renderer.domElement);
       audioCtx.close();
-      button.removeEventListener('click', requestOrientationPermission);
     };
   }, []);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
-      {/* Three.js container */}
-      <div
-        id="three-container"
-        style={{
-          width: '100%',
-          height: '100%',
-        }}
-      />
-
-      {/* Enable Gyroscope Button */}
-      <button
-        id="enable-gyroscope"
-        style={{
-          position: 'absolute',
-          top: '10px',
-          left: '10px',
-          zIndex: 10,
-          padding: '10px 20px',
-          fontSize: '16px',
-        }}
-      >
-        Enable Gyroscope
-      </button>
-
-      {/* Hidden video and audio elements */}
+    <div id="three-container" style={{ width: '100%', height: '100vh' }}>
       <video
         id="video"
         loop
@@ -270,17 +214,10 @@ const ThreeScene = () => {
         crossOrigin="anonymous"
         playsInline
         style={{ display: 'none' }}
-        autoPlay
       >
         <source src="movie.mp4" type="video/mp4" />
       </video>
-      <audio
-        id="audio"
-        controls
-        loop
-        style={{ display: 'none' }}
-        autoPlay
-      >
+      <audio id="audio" loop style={{ display: 'none' }}>
         <source src="audio.mp3" type="audio/mp3" />
       </audio>
     </div>
