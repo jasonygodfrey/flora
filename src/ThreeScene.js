@@ -1,13 +1,14 @@
 import React, { useEffect } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { DeviceOrientationControls } from 'three/examples/jsm/controls/DeviceOrientationControls';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 
 const ThreeScene = () => {
   useEffect(() => {
-    let scene, camera, renderer, controls, composer, bloomPass;
+    let scene, camera, renderer, controls, deviceControls, composer, bloomPass;
     let video, texture, particles, analyser, audioCtx, audio, audioSource;
     const particleCount = 1480 * 1480;
     const luminanceThreshold = 0.1;
@@ -33,13 +34,16 @@ const ThreeScene = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
     container.appendChild(renderer.domElement);
 
-    // Orbit Controls setup
+    // Orbit Controls setup (used only for desktop)
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.25;
     controls.maxDistance = 3000;
     controls.minDistance = 200;
 
+    // Device Orientation Controls setup
+    deviceControls = new DeviceOrientationControls(camera);
+    
     // Audio setup
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     audio = document.getElementById('audio');
@@ -146,48 +150,23 @@ const ThreeScene = () => {
     const animate = () => {
       requestAnimationFrame(animate);
       if (particles) {
-        controls.update();
         detectBass();
         particles.material.uniforms.bassStrength.value = bassStrength;
+
+        // Update controls depending on the device
+        if (window.innerWidth > 768) {
+          controls.update(); // Update orbit controls on desktop
+        } else {
+          deviceControls.update(); // Update device orientation controls on mobile
+        }
+        
         composer.render();
       }
     };
     animate();
 
-    // Device Orientation Event with Permission Handling
-    const requestOrientationPermission = async () => {
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        try {
-          const response = await DeviceOrientationEvent.requestPermission();
-          if (response === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation, true);
-          }
-        } catch (error) {
-          console.error('Permission request for device orientation failed', error);
-        }
-      } else {
-        // Fallback for browsers that do not require permission
-        window.addEventListener('deviceorientation', handleOrientation, true);
-      }
-    };
-
-    const handleOrientation = (event) => {
-      const { alpha, beta, gamma } = event; // alpha (Z), beta (X), gamma (Y)
-      if (alpha !== null && beta !== null && gamma !== null) {
-        const radAlpha = THREE.MathUtils.degToRad(alpha);
-        const radBeta = THREE.MathUtils.degToRad(beta - 90);
-        const radGamma = THREE.MathUtils.degToRad(gamma);
-
-        camera.rotation.set(radBeta, radGamma, radAlpha);
-      }
-    };
-
-    // Request permission and add listener
-    requestOrientationPermission();
-
     return () => {
       window.removeEventListener('resize', onWindowResize);
-      window.removeEventListener('deviceorientation', handleOrientation);
       container.removeChild(renderer.domElement);
       audioCtx.close();
     };
