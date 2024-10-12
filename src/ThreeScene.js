@@ -206,9 +206,7 @@ const ThreeScene = () => {
       }
     };
 
-    // Add event listener to the button
-    const button = document.getElementById('enable-gyroscope');
-    button.addEventListener('click', requestOrientationPermission);
+
 
     // Clean up
     return () => {
@@ -228,7 +226,7 @@ const ThreeScene = () => {
 
   return (
     <div>
-      <button id="enable-gyroscope">Enable Gyroscope</button>
+   
       <video
         id="video"
         loop
