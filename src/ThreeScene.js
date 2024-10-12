@@ -154,8 +154,22 @@ const ThreeScene = () => {
     };
     animate();
 
+    // Device Orientation Event
+    const handleOrientation = (event) => {
+      const { beta, gamma } = event; // beta (X-axis), gamma (Y-axis)
+      camera.rotation.x = THREE.MathUtils.degToRad(beta - 90); // Tilt device forwards/backwards
+      camera.rotation.y = THREE.MathUtils.degToRad(gamma); // Tilt device left/right
+    };
+
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    } else {
+      console.log('Device orientation not supported');
+    }
+
     return () => {
       window.removeEventListener('resize', onWindowResize);
+      window.removeEventListener('deviceorientation', handleOrientation);
       container.removeChild(renderer.domElement);
       audioCtx.close();
     };

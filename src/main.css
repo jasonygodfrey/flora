@@ -1,0 +1,15 @@
+/* main.css */
+html, body, #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden; /* Prevents scrolling */
+  }
+  
+  #three-container {
+    width: 100vw;
+    height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  
