@@ -156,9 +156,10 @@ const ThreeScene = () => {
 
     // Device Orientation Event
     const handleOrientation = (event) => {
-      const { beta, gamma } = event; // beta (X-axis), gamma (Y-axis)
-      camera.rotation.x = THREE.MathUtils.degToRad(beta - 90); // Tilt device forwards/backwards
-      camera.rotation.y = THREE.MathUtils.degToRad(gamma); // Tilt device left/right
+      const { alpha, beta, gamma } = event; // alpha (Z), beta (X), gamma (Y)
+      camera.rotation.x = THREE.MathUtils.degToRad(beta - 90); // Forward/backward tilt
+      camera.rotation.y = THREE.MathUtils.degToRad(gamma); // Left/right tilt
+      camera.rotation.z = THREE.MathUtils.degToRad(alpha); // Rotation around Z-axis
     };
 
     if (window.DeviceOrientationEvent) {
