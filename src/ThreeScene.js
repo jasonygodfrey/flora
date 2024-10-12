@@ -1,16 +1,16 @@
 // ThreeScene.js
+
 import React, { useEffect } from 'react';
 import * as THREE from 'three';
-import { DeviceOrientationControls } from 'three-device-orientation';
 
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 const ThreeScene = () => {
   useEffect(() => {
-    let scene, camera, renderer, controls, deviceControls, composer, bloomPass;
+    let scene, camera, renderer, controls, composer, bloomPass;
     let video, texture, particles, analyser, audioCtx, audio, audioSource;
     const particleCount = 480 * 480;
     const luminanceThreshold = 0.1;
@@ -156,15 +156,30 @@ const ThreeScene = () => {
       bassStrength = bassTotal / bassRange / 155;
     };
 
+    // Device Orientation Variables
+    let deviceOrientation = null;
+
     const animate = () => {
       requestAnimationFrame(animate);
       if (particles) {
         detectBass();
         particles.material.uniforms.bassStrength.value = bassStrength;
 
-        if (deviceControls) {
-          deviceControls.update();
+        // Update camera rotation based on device orientation
+        if (deviceOrientation) {
+          const { alpha, beta, gamma } = deviceOrientation;
+
+          // Convert degrees to radians
+          const alphaRad = THREE.MathUtils.degToRad(alpha || 0);
+          const betaRad = THREE.MathUtils.degToRad(beta || 0);
+          const gammaRad = THREE.MathUtils.degToRad(gamma || 0);
+
+          // Create quaternion from Euler angles
+          const euler = new THREE.Euler();
+          euler.set(betaRad, alphaRad, -gammaRad, 'YXZ'); // Adjust axes as needed
+          camera.quaternion.setFromEuler(euler);
         } else {
+          // Fallback to OrbitControls if device orientation is not available
           controls.update();
         }
 
@@ -173,14 +188,18 @@ const ThreeScene = () => {
     };
     animate();
 
-    // Function to request permission and enable controls
+    // Function to request permission and enable device orientation
     const requestOrientationPermission = async () => {
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      if (
+        typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function'
+      ) {
         // iOS 13+ devices
         try {
           const response = await DeviceOrientationEvent.requestPermission();
           if (response === 'granted') {
-            enableDeviceOrientationControls();
+            window.addEventListener('deviceorientation', handleOrientation, true);
+            controls.enabled = false; // Disable OrbitControls
           } else {
             alert('Device orientation permission denied');
           }
@@ -189,18 +208,17 @@ const ThreeScene = () => {
         }
       } else {
         // Non-iOS devices or older versions
-        enableDeviceOrientationControls();
+        window.addEventListener('deviceorientation', handleOrientation, true);
+        controls.enabled = false; // Disable OrbitControls
       }
     };
 
-    const enableDeviceOrientationControls = () => {
-      if (window.DeviceOrientationEvent) {
-        deviceControls = new DeviceOrientationControls(camera);
-        deviceControls.connect();
-        controls.enabled = false; // Disable OrbitControls
-      } else {
-        alert('Device orientation not supported on your device/browser.');
-      }
+    const handleOrientation = (event) => {
+      deviceOrientation = {
+        alpha: event.alpha,
+        beta: event.beta,
+        gamma: event.gamma,
+      };
     };
 
     // Add event listener to the button
@@ -210,7 +228,7 @@ const ThreeScene = () => {
     // Clean up
     return () => {
       window.removeEventListener('resize', onWindowResize);
-      if (deviceControls) deviceControls.dispose();
+      window.removeEventListener('deviceorientation', handleOrientation);
       if (controls) controls.dispose();
       container.removeChild(renderer.domElement);
       audioCtx.close();
@@ -219,8 +237,32 @@ const ThreeScene = () => {
   }, []);
 
   return (
-    <div>
-      <button id="enable-gyroscope">Enable Gyroscope</button>
+    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
+      {/* Three.js container */}
+      <div
+        id="three-container"
+        style={{
+          width: '100%',
+          height: '100%',
+        }}
+      />
+
+      {/* Enable Gyroscope Button */}
+      <button
+        id="enable-gyroscope"
+        style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          zIndex: 10,
+          padding: '10px 20px',
+          fontSize: '16px',
+        }}
+      >
+        Enable Gyroscope
+      </button>
+
+      {/* Hidden video and audio elements */}
       <video
         id="video"
         loop
@@ -241,7 +283,6 @@ const ThreeScene = () => {
       >
         <source src="audio.mp3" type="audio/mp3" />
       </audio>
-      <div id="three-container" />
     </div>
   );
 };

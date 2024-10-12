@@ -1,3 +1,4 @@
+// index.js
 import React from 'react';
 import ReactDOM from 'react-dom';
 import './main.css'; // Import the CSS file for full-page styling
