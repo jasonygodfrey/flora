@@ -1,12 +1,12 @@
 // ThreeScene.js
-
 import React, { useEffect } from 'react';
 import * as THREE from 'three';
+import { DeviceOrientationControls } from 'three-device-orientation';
+
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { DeviceOrientationControls } from 'three-stdlib';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 
 const ThreeScene = () => {
   useEffect(() => {
@@ -33,6 +33,7 @@ const ThreeScene = () => {
     texture = new THREE.VideoTexture(video);
     texture.minFilter = THREE.NearestFilter;
     texture.magFilter = THREE.NearestFilter;
+    video.play();
 
     // Renderer setup
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -42,6 +43,7 @@ const ThreeScene = () => {
 
     // Orbit Controls setup (used as fallback)
     controls = new OrbitControls(camera, renderer.domElement);
+    controls.enabled = true; // Ensure controls are enabled initially
     controls.enableDamping = true;
     controls.dampingFactor = 0.25;
     controls.maxDistance = 3000;
@@ -55,6 +57,7 @@ const ThreeScene = () => {
     analyser.fftSize = 512;
     audioSource.connect(analyser);
     analyser.connect(audioCtx.destination);
+    audio.play();
 
     // Create Particle System
     const videoWidth = 480;
@@ -154,30 +157,6 @@ const ThreeScene = () => {
       bassStrength = bassTotal / bassRange / 155;
     };
 
-    // Device orientation controls for mobile
-    if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {
-      deviceControls = new DeviceOrientationControls(camera);
-      deviceControls.connect();
-      deviceControls.update();
-      controls.enabled = false; // Disable OrbitControls on mobile
-    }
-
-    // Start video and audio playback after user interaction
-    const startMediaPlayback = () => {
-      video.play().catch((error) => {
-        console.error('Error starting video playback:', error);
-      });
-
-      audio.play().catch((error) => {
-        console.error('Error starting audio playback:', error);
-      });
-
-      window.removeEventListener('click', startMediaPlayback);
-    };
-
-    // Add event listener to start media playback
-    window.addEventListener('click', startMediaPlayback);
-
     const animate = () => {
       requestAnimationFrame(animate);
       if (particles) {
@@ -186,7 +165,9 @@ const ThreeScene = () => {
 
         if (deviceControls) {
           deviceControls.update();
-        } else {
+        }
+
+        if (controls.enabled) {
           controls.update();
         }
 
@@ -195,18 +176,59 @@ const ThreeScene = () => {
     };
     animate();
 
+    // Function to request permission and enable controls
+    const requestOrientationPermission = async () => {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // iOS 13+ devices
+        try {
+          const response = await DeviceOrientationEvent.requestPermission();
+          if (response === 'granted') {
+            enableDeviceOrientationControls();
+          } else {
+            alert('Device orientation permission denied');
+          }
+        } catch (error) {
+          console.error('Error requesting device orientation permission:', error);
+        }
+      } else {
+        // Non-iOS devices or older versions
+        enableDeviceOrientationControls();
+      }
+    };
+
+    const enableDeviceOrientationControls = () => {
+      if (window.DeviceOrientationEvent) {
+        deviceControls = new DeviceOrientationControls(camera);
+        deviceControls.connect();
+        controls.enabled = false; // Disable OrbitControls
+      } else {
+        alert('Device orientation not supported on your device/browser.');
+      }
+    };
+
+    // Add event listener to the button
+    const button = document.getElementById('enable-gyroscope');
+    button.addEventListener('click', requestOrientationPermission);
+
     // Clean up
     return () => {
       window.removeEventListener('resize', onWindowResize);
-      if (deviceControls) deviceControls.dispose();
+      if (deviceControls) {
+        deviceControls.disconnect(); // Disconnect device controls
+        deviceControls.dispose();
+        deviceControls = null;
+        controls.enabled = true; // Re-enable OrbitControls when deviceControls are disposed
+      }
       if (controls) controls.dispose();
       container.removeChild(renderer.domElement);
       audioCtx.close();
+      button.removeEventListener('click', requestOrientationPermission);
     };
   }, []);
 
   return (
-    <div id="three-container" style={{ width: '100%', height: '100vh' }}>
+    <div>
+      <button id="enable-gyroscope">Enable Gyroscope</button>
       <video
         id="video"
         loop
@@ -214,12 +236,20 @@ const ThreeScene = () => {
         crossOrigin="anonymous"
         playsInline
         style={{ display: 'none' }}
+        autoPlay
       >
         <source src="movie.mp4" type="video/mp4" />
       </video>
-      <audio id="audio" loop style={{ display: 'none' }}>
+      <audio
+        id="audio"
+        controls
+        loop
+        style={{ display: 'none' }}
+        autoPlay
+      >
         <source src="audio.mp3" type="audio/mp3" />
       </audio>
+      <div id="three-container" />
     </div>
   );
 };
