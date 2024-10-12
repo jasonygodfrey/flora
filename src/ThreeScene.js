@@ -154,19 +154,36 @@ const ThreeScene = () => {
     };
     animate();
 
-    // Device Orientation Event
-    const handleOrientation = (event) => {
-      const { alpha, beta, gamma } = event; // alpha (Z), beta (X), gamma (Y)
-      camera.rotation.x = THREE.MathUtils.degToRad(beta - 90); // Forward/backward tilt
-      camera.rotation.y = THREE.MathUtils.degToRad(gamma); // Left/right tilt
-      camera.rotation.z = THREE.MathUtils.degToRad(alpha); // Rotation around Z-axis
+    // Device Orientation Event with Permission Handling
+    const requestOrientationPermission = async () => {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+          const response = await DeviceOrientationEvent.requestPermission();
+          if (response === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation, true);
+          }
+        } catch (error) {
+          console.error('Permission request for device orientation failed', error);
+        }
+      } else {
+        // Fallback for browsers that do not require permission
+        window.addEventListener('deviceorientation', handleOrientation, true);
+      }
     };
 
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', handleOrientation, true);
-    } else {
-      console.log('Device orientation not supported');
-    }
+    const handleOrientation = (event) => {
+      const { alpha, beta, gamma } = event; // alpha (Z), beta (X), gamma (Y)
+      if (alpha !== null && beta !== null && gamma !== null) {
+        const radAlpha = THREE.MathUtils.degToRad(alpha);
+        const radBeta = THREE.MathUtils.degToRad(beta - 90);
+        const radGamma = THREE.MathUtils.degToRad(gamma);
+
+        camera.rotation.set(radBeta, radGamma, radAlpha);
+      }
+    };
+
+    // Request permission and add listener
+    requestOrientationPermission();
 
     return () => {
       window.removeEventListener('resize', onWindowResize);
